@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>KULUNA – La Rue de Kinshasa v2</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#9cc8dc;font-family:Arial,sans-serif;touch-action:none;user-select:none}
+#game{position:fixed;inset:0}canvas{display:block;touch-action:none}
+#hud{position:fixed;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;color:#fff;text-shadow:0 2px 5px #000}
+.brand{font-weight:900;font-size:20px;letter-spacing:1px}.sub{font-size:11px;margin-top:3px}
+#mission{background:#111a;padding:9px 12px;border-radius:12px;font-size:12px;max-width:52%;text-align:right;line-height:1.4}
+#help{position:fixed;top:68px;left:12px;color:#fff;font-size:11px;text-shadow:0 2px 4px #000;pointer-events:none}
+#bubble{position:fixed;left:50%;bottom:170px;transform:translateX(-50%);background:#fffffff0;color:#241600;padding:10px 16px;border-radius:14px;font-size:14px;font-weight:700;max-width:80%;text-align:center;display:none;pointer-events:none;box-shadow:0 4px 14px #0006}
+#controls{position:fixed;inset:auto 0 18px 0;display:flex;justify-content:space-between;align-items:end;padding:0 20px;pointer-events:none}
+#stick{width:124px;height:124px;border-radius:50%;background:#101a2b66;border:2px solid #ffffff88;position:relative;pointer-events:auto;touch-action:none}
+#knob{width:52px;height:52px;position:absolute;left:34px;top:34px;border-radius:50%;background:#ffffffbb;border:2px solid #fff;box-shadow:0 2px 8px #0005}
+#btns{display:grid;grid-template-columns:auto auto;gap:10px;align-items:end;justify-items:end}
+.b{pointer-events:auto;border:0;border-radius:50%;width:74px;height:74px;background:#f5b335;color:#241600;font-weight:900;font-size:12px;box-shadow:0 4px 12px #0005;touch-action:none}
+#jump{background:#6ec3a0}#talk{background:#fff;grid-column:1/3;width:auto;border-radius:30px;padding:0 22px;height:48px}
+#start{position:fixed;inset:0;background:linear-gradient(#10202a99,#10202acc);display:flex;align-items:center;justify-content:center;color:#fff;text-align:center;padding:24px}
+.panel{max-width:360px;background:#132b32ed;border:1px solid #ffffff44;border-radius:20px;padding:24px;box-shadow:0 12px 40px #0007}
+.panel h1{margin:0 0 8px;font-size:30px}.panel p{line-height:1.45;color:#e5eff0;font-size:14px}
+#play{background:#f5b335;color:#241600;border:0;border-radius:12px;padding:14px 26px;font-weight:900;font-size:16px}
+#tip{font-size:11px;color:#d6e4e7;margin-top:12px}
+.hid{display:none!important}
+@media(min-width:800px){#controls{padding:0 42px 26px}#stick{width:140px;height:140px}#knob{left:42px;top:42px}}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud"><div><div class="brand">KULUNA</div><div class="sub">LA RUE DE KINSHASA · v4 · VÉHICULES + COMBAT</div></div><div id="mission"></div></div>
+<div id="help">Glisse sur l’écran pour tourner la caméra · PC : WASD, Maj, Espace, E parler, V véhicule, F frapper, G pierre</div>
+<div id="bubble"></div>
+<div id="controls"><div id="stick"><div id="knob"></div></div>
+<div id="btns"><button class="b" id="talk">PARLER</button><button class="b" id="veh">ENTRER</button><button class="b hid" id="hit">FRAPPER</button><button class="b hid" id="stone">PIERRE</button><button class="b" id="jump">SAUTER</button><button class="b" id="run">COURIR</button></div></div>
+<div id="end" class="hid" style="position:fixed;inset:0;background:#000a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#fff"><div id="endt" style="font-size:30px;font-weight:900"></div><button id="again" class="b" style="width:auto;border-radius:12px;padding:0 24px;height:48px">REJOUER</button><button id="leave" class="b" style="width:auto;border-radius:12px;padding:0 24px;height:48px;background:#fff">RETOUR À LA RUE</button></div>
+<div id="start"><div class="panel"><h1>KULUNA</h1><p>Bienvenue dans la rue de Kinshasa.<br>Au bout de la rue, entre dans le cercle doré pour le <b>combat 5 vs 5 de Kingabwa</b> (machettes et pierres). Circule entre les minibus, évite les flaques (elles ralentissent) et va saluer les habitants.</p><button id="play">JOUER</button><div id="tip">Prototype de test · connexion Internet nécessaire au chargement 3D</div></div></div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+const $=id=>document.getElementById(id);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x9bc5d8);scene.fog=new THREE.Fog(0x9bc5d8,38,115);
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,220);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;
+$('game').appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xd9efff,0x67513a,2.0));
+const sun=new THREE.DirectionalLight(0xffe0ae,2.1);sun.position.set(-18,30,14);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
+Object.assign(sun.shadow.camera,{left:-30,right:30,top:30,bottom:-30,far:90});scene.add(sun);scene.add(sun.target);
+
+const mat=(c,r=.9)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
+const waterMat=new THREE.MeshStandardMaterial({color:0x547f8d,roughness:.22,metalness:.08});
+function box(p,x,y,z,w,h,d,c){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;p.add(m);return m}
+function cyl(p,x,y,z,r1,r2,h,c,s=12){const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,s),mat(c));m.position.set(x,y,z);m.castShadow=true;p.add(m);return m}
+// seeded random → même quartier à chaque partie
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+
+const colliders=[];const addCol=(x,z,hw,hd)=>{const c={x,z,hw,hd};colliders.push(c);return c};
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(150,150),mat(0x88765d));floor.rotation.x=-Math.PI/2;floor.position.y=-.08;floor.receiveShadow=true;scene.add(floor);
+box(scene,0,-.025,0,10,.08,110,0x484a48);box(scene,-6,-.015,0,2,.06,110,0x8c765b);box(scene,6,-.015,0,2,.06,110,0x8c765b);
+for(let z=-48;z<55;z+=8)box(scene,0,.03,z,.16,.02,3.2,0xd8c99b);
+const puddles=[[-4.8,-13,2.1,4.8],[4.5,9,2.2,5.4],[-3.8,30,2.4,5.8],[3.8,-37,2.4,4.2]];
+for(const p of puddles){const w=new THREE.Mesh(new THREE.PlaneGeometry(p[2],p[3]),waterMat);w.rotation.x=-Math.PI/2;w.position.set(p[0],.03,p[1]);scene.add(w)}
+const inPuddle=(x,z)=>puddles.some(p=>Math.abs(x-p[0])<p[2]/2&&Math.abs(z-p[1])<p[3]/2);
+
+const wallColors=[0xd9b18b,0xc87d55,0xd8c49c,0xb6a18a,0xe0c46f,0xa7b8a0];
+for(const side of [-1,1])for(let i=0;i<9;i++){
+ const z=-43+i*11+(rnd()*2-1),x=side*(9+rnd()*2),w=5+rnd()*2,h=4+rnd()*2,d=6+rnd()*2;
+ box(scene,x,h/2-.02,z,w,h,d,wallColors[(i+(side===1?2:0))%6]);box(scene,x,h+.12,z,w+.25,.25,d+.25,0x6e4b36);
+ box(scene,x+side*.4,1.15,z-d/2-.045,1.4,2.25,.08,0x315b65);box(scene,x-side*.8,1.45,z-d/2-.05,1.3,.85,.09,0xf0d8a7);
+ box(scene,x,2.45,z-d/2-.38,3.4,.16,.85,[0xb33d31,0xd6a52c,0x3f7664][i%3]);box(scene,x+side*1.35,2.7,z-d/2-.055,.9,.8,.08,0x7fa7ae);
+ addCol(x,z,w/2,d/2);
+}
+for(let i=0;i<7;i++){const z=-35+i*12;
+ box(scene,-7.1,1.15,z,2.3,2.3,2.2,0x8e5438);box(scene,-7.1,2.38,z,2.55,.18,2.45,0x3c665a);box(scene,-7.1,1.65,z-1.13,2.2,.75,.08,0xe2b44c);addCol(-7.1,z,1.2,1.1)}
+for(let z=-45;z<52;z+=15){cyl(scene,-5.9,4.5,z,.11,.14,9,0x5c4635,8);cyl(scene,5.9,4.5,z,.11,.14,9,0x5c4635,8);addCol(-5.9,z,.2,.2);addCol(5.9,z,.2,.2)}
+for(let z=-40;z<50;z+=15){const w=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,12,6),mat(0x272c2d));w.rotation.z=Math.PI/2;w.position.set(0,8,z);scene.add(w)}
+// nuages simples
+for(let i=0;i<8;i++){const c=new THREE.Mesh(new THREE.SphereGeometry(5+rnd()*4,8,6),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.7,fog:false}));c.scale.y=.35;c.position.set(-60+rnd()*120,40+rnd()*10,-70+rnd()*100);scene.add(c)}
+
+// circulation : minibus et motos qui roulent (z+ = avant du véhicule)
+const traffic=[];let drive=null;
+function vehicle(x,z,color,speed){
+ const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
+ box(g,0,.85,0,2.1,1.25,4.1,color);box(g,0,1.62,-.15,1.8,.65,2,0x8fb3bc);
+ for(const xx of [-1.08,1.08])for(const zz of [-1.3,1.3])cyl(g,xx,.38,zz,.38,.38,.22,0x17191a).rotation.z=Math.PI/2;
+ box(g,0,1.25,2.08,1.7,.25,.08,0xf1d7a4);
+ traffic.push({g,speed,r:1.5,max:15,vel:0,h:0,hw0:1.15,hd0:2.1,col:addCol(x,z,1.15,2.1)});
+}
+function moto(x,z,speed){
+ const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
+ for(const zz of [-.55,.55])cyl(g,0,.36,zz,.34,.34,.16,0x202326).rotation.z=Math.PI/2;
+ box(g,0,.76,0,.3,.35,1.4,0x9c392b);box(g,0,1.04,-.1,.16,.45,.16,0x282c2d);box(g,0,1.5,-.1,.4,.6,.3,0x2f6f9f);
+ traffic.push({g,speed,r:.8,max:22,vel:0,h:0,hw0:.35,hd0:.9,col:addCol(x,z,.35,.9)});
+}
+vehicle(-3.7,-23,0xc8a52d,0);vehicle(3.5,25,0x3c7791,0);
+vehicle(-2.2,-45,0xd9532e,6);vehicle(2.4,40,0x2f8f6f,-5);moto(-1,-10,9);moto(1.2,15,-8);moto(5,-5,0);moto(-5,39,0);
+function updateTraffic(dt){for(const t of traffic){if(t.driven||!t.speed)continue;t.g.position.z+=t.speed*dt;if(t.g.position.z>58)t.g.position.z=-58;if(t.g.position.z<-58)t.g.position.z=58;t.g.rotation.y=t.speed>0?0:Math.PI;t.col.x=t.g.position.x;t.col.z=t.g.position.z}}
+
+// personnages
+function person(shirt,skin,pants,collar){
+ const g=new THREE.Group(),sk=mat(skin);
+ const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.34,.58,4,8),mat(shirt));torso.position.y=1.38;torso.castShadow=true;g.add(torso);
+ const head=new THREE.Mesh(new THREE.SphereGeometry(.25,16,12),sk);head.position.y=2.12;head.castShadow=true;g.add(head);
+ const hair=new THREE.Mesh(new THREE.SphereGeometry(.255,12,8,0,Math.PI*2,0,Math.PI*.55),mat(0x171514));hair.position.y=2.18;g.add(hair);
+ const legs=[],arms=[];
+ for(const x of [-.17,.17]){const lg=new THREE.Group();lg.position.set(x,.9,0);const m=new THREE.Mesh(new THREE.CapsuleGeometry(.12,.62,3,7),mat(pants));m.position.y=-.45;m.castShadow=true;lg.add(m);box(lg,0,-.78,.1,.28,.18,.48,0xe8e8e4);g.add(lg);legs.push(lg)}
+ for(const x of [-.43,.43]){const a=new THREE.Group();a.position.set(x,1.72,0);const m=new THREE.Mesh(new THREE.CapsuleGeometry(.105,.58,3,7),sk);m.position.y=-.33;a.add(m);g.add(a);arms.push(a)}
+ if(collar)box(g,0,1.75,.01,.55,.09,.48,0xe1b52c);
+ scene.add(g);return {g,legs,arms};
+}
+function swing(p,t,amp){p.legs[0].rotation.x=Math.sin(t)*amp;p.legs[1].rotation.x=-p.legs[0].rotation.x;p.arms[0].rotation.x=-p.legs[0].rotation.x*.8;p.arms[1].rotation.x=-p.arms[0].rotation.x}
+const me=person(0xffffff,0x6a3828,0x172a49,true);me.g.position.set(0,0,2);
+const player=me.g;
+
+// habitants à saluer (vérifier le lingala avec un locuteur avant publication)
+const lines=["Mbote ! Ozali malamu ?","Mbote, mokili ya Kinshasa ezali kitoko !","Tokutani lisusu, moninga !","Mbote na yo ! Kende malamu."];
+const npcs=[[-4.4,-30,0xb33d31],[4.2,-8,0x3f7664],[-4.0,14,0xd6a52c],[4.6,36,0x7a5ca8]].map(([x,z,c],i)=>{
+ const p=person(c,[0x5a3322,0x7a4a32][i%2],[0x2a2a2a,0x5b4a3a][i%2]);p.g.position.set(x,0,z);
+ return {...p,dir:i%2?1:-1,talked:false,off:i*2,home:x};
+});
+const nearNpc=()=>{let b=null,bd=3.2;for(const n of npcs){const d=Math.hypot(n.g.position.x-player.position.x,n.g.position.z-player.position.z);if(d<bd){bd=d;b=n}}return b};
+let bubbleT=0;
+function say(t){$('bubble').textContent=t;$('bubble').style.display='block';bubbleT=3}
+function updateMission(){const n=npcs.filter(x=>x.talked).length;$('mission').innerHTML=n>=npcs.length?'✅ Mission accomplie !<br>Tu as salué tout le quartier.':`Mission : salue les habitants (${n}/${npcs.length})<br>Flaques = ralentissement`}
+updateMission();
+function talk(){if(drive)return;const n=nearNpc();if(!n){say("Personne à proximité…");return}
+ if(!n.talked){n.talked=true;updateMission()}say(lines[npcs.indexOf(n)%lines.length])}
+let bobT=0;
+function updateNpcs(dt,now){for(const n of npcs){
+ const near=Math.hypot(n.g.position.x-player.position.x,n.g.position.z-player.position.z)<3.2;
+ if(!near){n.g.position.z+=n.dir*1.1*dt;if(n.g.position.z>44||n.g.position.z<-44)n.dir*=-1;n.g.rotation.y=n.dir>0?0:Math.PI;swing(n,now*.006+n.off,.4)}
+ else{swing(n,0,0);n.g.rotation.y=Math.atan2(player.position.x-n.g.position.x,player.position.z-n.g.position.z)}}}
+
+// ===== COMBAT 5 vs 5 – terrain de Kingabwa (machettes et pierres, sans gore : K.O.) =====
+const AX=0,AZ=-110;let inMatch=false,over=false,lastTxt='';
+const fl2=new THREE.Mesh(new THREE.PlaneGeometry(150,150),mat(0x88765d));fl2.rotation.x=-Math.PI/2;fl2.position.set(0,-.08,-110);scene.add(fl2);
+{const f=new THREE.Mesh(new THREE.PlaneGeometry(36,36),mat(0x8a6f52));f.rotation.x=-Math.PI/2;f.position.set(AX,.02,AZ);f.receiveShadow=true;scene.add(f);
+ const w=new THREE.Mesh(new THREE.PlaneGeometry(9,7),waterMat);w.rotation.x=-Math.PI/2;w.position.set(AX,.04,AZ);scene.add(w);
+ for(const [x,z,hw,hd] of [[0,-18,18,.3],[0,18,18,.3],[-18,0,.3,18],[18,0,.3,18]])box(scene,AX+x,1.4,AZ+z,hw*2,2.8,hd*2,0xc9a77c);
+ for(const [x,z] of [[-9,-4],[9,5],[-10,9],[10,-9]]){box(scene,AX+x,.6,AZ+z,1.6,1.2,1.6,0x8e5438);addCol(AX+x,AZ+z,.9,.9)}}
+const mk=new THREE.Mesh(new THREE.TorusGeometry(1.6,.15,8,24),new THREE.MeshBasicMaterial({color:0xf5b335}));mk.rotation.x=Math.PI/2;mk.position.set(0,.2,-46);scene.add(mk);
+{const c=document.createElement('canvas');c.width=512;c.height=128;const x=c.getContext('2d');x.fillStyle='#000a';x.fillRect(0,0,512,128);x.fillStyle='#f5b335';x.font='bold 40px Arial';x.textAlign='center';x.fillText('COMBAT 5 vs 5',256,55);x.fillStyle='#fff';x.font='28px Arial';x.fillText('Terrain de Kingabwa',256,100);
+ const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c)}));sp.scale.set(6,1.5,1);sp.position.set(0,4,-46);scene.add(sp)}
+const fighters=[],stones=[];
+function mkFighter(team,p,isP){
+ const blade=new THREE.Group();box(blade,0,-.7,.08,.07,.55,.16,0xc8ccd0);box(blade,0,-.4,.08,.08,.14,.1,0x3a2a1a);p.arms[1].add(blade);
+ const bar=new THREE.Sprite(new THREE.SpriteMaterial({color:team?0xd9442e:0x3fbf6a}));bar.scale.set(1.2,.12,1);bar.position.y=2.7;p.g.add(bar);bar.visible=false;
+ const f={p,team,isP,bar,hp:100,ammo:6,cd:0,t:0,thr:2,alive:true};if(!isP)p.g.visible=false;fighters.push(f);return f}
+const FP=mkFighter(0,me,true);
+for(let i=0;i<4;i++)mkFighter(0,person(0xf5b335,0x6a3828,0x172a49,true),false);
+for(let i=0;i<5;i++)mkFighter(1,person(0xb33d31,[0x5a3322,0x7a4a32][i%2],0x2a2a2a),false);
+const dst=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
+function foe(f,maxd){let b=null,bd=maxd;for(const o of fighters)if(o.alive&&o.team!==f.team){const d=dst(o.p.g.position,f.p.g.position);if(d<bd){bd=d;b=o}}return b}
+function hurt(o,dmg,from){o.hp-=dmg;const g=o.p.g,dx=g.position.x-from.x,dz=g.position.z-from.z,l=Math.hypot(dx,dz)||1;g.position.x+=dx/l*.35;g.position.z+=dz/l*.35;
+ if(o.hp<=0){o.hp=0;o.alive=false;o.bar.visible=false;g.rotation.set(-Math.PI/2,g.rotation.y,0);g.position.y=.3}o.bar.scale.x=Math.max(.001,1.2*o.hp/100)}
+function doHit(f){if(!inMatch||over||f.cd>0||!f.alive)return;f.cd=f.isP?.5:1.2+Math.random()*.5;f.t=.35;
+ setTimeout(()=>{if(!f.alive||!inMatch)return;const o=foe(f,2.3);if(o)hurt(o,f.isP?25:9,f.p.g.position)},120)}
+function throwStone(f){if(!inMatch||over||f.ammo<=0||!f.alive||f.thr>0)return;const o=foe(f,40);if(!o)return;f.ammo--;f.thr=f.isP?.6:3;f.t=.35;
+ const a=f.p.g.position,b=o.p.g.position,l=dst(a,b)||1;const m=new THREE.Mesh(new THREE.SphereGeometry(.14,8,6),mat(0x777777));m.position.set(a.x,1.7,a.z);scene.add(m);
+ stones.push({m,vx:(b.x-a.x)/l*15,vz:(b.z-a.z)/l*15,vy:3.2,team:f.team})}
+function clearStones(){for(const s of stones)scene.remove(s.m);stones.length=0}
+function resetMatch(){over=false;$('end').classList.add('hid');clearStones();let a=0,b=0;
+ for(const f of fighters){f.hp=100;f.ammo=f.isP?8:5;f.cd=0;f.t=0;f.thr=2;f.alive=true;f.bar.visible=true;f.bar.scale.x=1.2;
+  const g=f.p.g,i=f.team?b++:a++;g.visible=true;g.rotation.set(0,f.team?0:Math.PI,0);
+  g.position.set(f.team?(i-2)*4.5:(f.isP?0:[-9,-4.5,4.5,9][i-1]),0,AZ+(f.team?-10:10))}}
+function startMatch(){inMatch=true;camYaw=0;resetMatch();$('talk').classList.add('hid');$('veh').classList.add('hid');$('hit').classList.remove('hid');$('stone').classList.remove('hid');setCamera(true)}
+function exitMatch(){inMatch=false;over=false;clearStones();$('end').classList.add('hid');for(const f of fighters){f.bar.visible=false;if(!f.isP)f.p.g.visible=false}
+ me.g.rotation.set(0,0,0);me.g.position.set(0,0,-42);vy=0;camYaw=0;$('talk').classList.remove('hid');$('veh').classList.remove('hid');$('hit').classList.add('hid');$('stone').classList.add('hid');updateMission();setCamera(true)}
+function updateCombat(dt,now){if(!inMatch)return;
+ for(const f of fighters){f.cd-=dt;f.thr-=dt;if(f.t>0)f.t-=dt;if(!f.alive||f.isP||over)continue;
+  const o=foe(f,99);if(!o)continue;const g=f.p.g,a=g.position,b=o.p.g.position,d=dst(a,b);
+  g.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);
+  if(d>1.5){const s=3.1*dt;a.x+=(b.x-a.x)/d*s;a.z+=(b.z-a.z)/d*s;swing(f.p,now*.01,.5)}else{swing(f.p,0,0);doHit(f)}
+  if(d>5&&Math.random()<.008)throwStone(f)}
+ for(let i=0;i<fighters.length;i++)for(let j=i+1;j<fighters.length;j++){const A=fighters[i],B=fighters[j];if(!A.alive||!B.alive)continue;
+  const a=A.p.g.position,b=B.p.g.position,d=dst(a,b);if(d<.9&&d>0){const p=(.9-d)/2,dx=(a.x-b.x)/d,dz=(a.z-b.z)/d;if(!A.isP){a.x+=dx*p;a.z+=dz*p}if(!B.isP){b.x-=dx*p;b.z-=dz*p}}}
+ for(const f of fighters){if(!f.alive)continue;if(f.t>0)f.p.arms[1].rotation.x=-2.4*Math.sin(f.t/.35*Math.PI);
+  const g=f.p.g.position;g.x=THREE.MathUtils.clamp(g.x,AX-16.5,AX+16.5);g.z=THREE.MathUtils.clamp(g.z,AZ-16.5,AZ+16.5)}
+ for(let i=stones.length-1;i>=0;i--){const s=stones[i],m=s.m.position;m.x+=s.vx*dt;m.z+=s.vz*dt;s.vy-=12*dt;m.y+=s.vy*dt;let gone=m.y<.1;
+  if(!gone)for(const o of fighters)if(o.alive&&o.team!==s.team&&Math.hypot(o.p.g.position.x-m.x,o.p.g.position.z-m.z)<.8&&m.y<2.3){hurt(o,14,m);gone=true;break}
+  if(gone){scene.remove(s.m);stones.splice(i,1)}}
+ const a=fighters.filter(f=>f.alive&&f.team===0).length,b=fighters.filter(f=>f.alive&&f.team===1).length;
+ const txt=`⚔️ Kingabwa 5 vs 5<br>Ton équipe : ${a} · Adversaires : ${b}<br>PV ${FP.hp} · Pierres ${FP.ammo}`;
+ if(txt!==lastTxt){lastTxt=txt;$('mission').innerHTML=txt}
+ if(!over&&(b===0||!FP.alive)){over=true;$('endt').textContent=b===0?'🏆 VICTOIRE !':'K.O. — défaite';$('end').classList.remove('hid')}}
+
+// état + contrôles
+let camYaw=0,moveX=0,moveY=0,running=false,started=false,vy=0,jumpReq=false;
+const keys={};
+addEventListener('keydown',e=>{keys[e.code]=1;if(e.code==='Space')jumpReq=true;if(e.code==='KeyE')talk();if(e.code==='KeyV')toggleVeh();if(inMatch){if(e.code==='KeyF')doHit(FP);if(e.code==='KeyG')throwStone(FP)}});
+addEventListener('keyup',e=>keys[e.code]=0);
+const target=new THREE.Vector3();
+function setCamera(snap){
+ target.set(player.position.x,player.position.y+1.4,player.position.z);
+ const d=target.clone().add(new THREE.Vector3(Math.sin(camYaw)*7,3,Math.cos(camYaw)*7));
+ if(snap)camera.position.copy(d);else camera.position.lerp(d,.18);camera.lookAt(target);
+}
+function resolve(p,r=.35){if(p.y>2.3)return;for(const c of colliders){const dx=p.x-c.x,dz=p.z-c.z,ox=c.hw+r-Math.abs(dx),oz=c.hd+r-Math.abs(dz);if(ox>0&&oz>0){if(ox<oz)p.x+=(dx>=0?1:-1)*ox;else p.z+=(dz>=0?1:-1)*oz}}}
+function toggleVeh(){if(inMatch)return;
+ if(drive){const v=drive,g=v.g.position;me.g.visible=true;player.position.set(g.x-Math.cos(v.h)*(v.r+1.1),0,g.z+Math.sin(v.h)*(v.r+1.1));player.rotation.y=v.h;
+  const sw=Math.abs(Math.sin(v.h))>.7;v.col.hw=sw?v.hd0:v.hw0;v.col.hd=sw?v.hw0:v.hd0;v.col.x=g.x;v.col.z=g.z;v.driven=false;v.speed=0;drive=null;camYaw=v.h+Math.PI;$('veh').textContent='ENTRER';return}
+ let b=null,bd=99;for(const t of traffic){const d=Math.hypot(t.g.position.x-player.position.x,t.g.position.z-player.position.z);if(d<t.r+2.5&&d<bd){bd=d;b=t}}
+ if(!b){say('Aucun véhicule à proximité');return}
+ drive=b;b.driven=true;b.vel=0;b.h=b.g.rotation.y;b.col.x=1e5;me.g.visible=false;$('veh').textContent='SORTIR';say('Tu conduis ! Joystick : avancer, freiner, tourner · COURIR = turbo')}
+function driveStep(dt){const v=drive,C=THREE.MathUtils.clamp;
+ const mx=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0)+moveX,my=(keys.KeyS||keys.ArrowDown?1:0)-(keys.KeyW||keys.ArrowUp?1:0)+moveY;
+ const th=C(-my,-1,1),st=C(mx,-1,1),mxv=v.max*((running||keys.ShiftLeft)?1.4:1);
+ if(Math.abs(th)>.1)v.vel+=th*((th>0&&v.vel<0)||(th<0&&v.vel>0)?30:14)*dt;else v.vel-=Math.sign(v.vel)*Math.min(Math.abs(v.vel),6*dt);
+ v.vel=C(v.vel,-v.max*.4,mxv);v.h-=st*1.9*dt*C(v.vel/5,-1,1);
+ const g=v.g,px=g.position.x,pz=g.position.z;g.position.x+=Math.sin(v.h)*v.vel*dt;g.position.z+=Math.cos(v.h)*v.vel*dt;
+ resolve(g.position,v.r);if(Math.hypot(g.position.x-px-Math.sin(v.h)*v.vel*dt,g.position.z-pz-Math.cos(v.h)*v.vel*dt)>.02)v.vel*=.85;
+ g.position.x=C(g.position.x,-7.5,7.5);g.position.z=C(g.position.z,-52,52);g.rotation.y=v.h;
+ player.position.set(g.position.x,0,g.position.z);
+ const dY=((v.h+Math.PI-camYaw+Math.PI*3)%(Math.PI*2))-Math.PI;camYaw+=dY*Math.min(1,3*dt);
+ sun.position.set(player.position.x-18,30,player.position.z+14);sun.target.position.copy(player.position);setCamera(false)}
+function movePlayer(dt,now){
+ if(drive){driveStep(dt);return}
+ if(inMatch&&!FP.alive){setCamera(false);return}
+ let mx=moveX,my=moveY;
+ mx+=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
+ my+=(keys.KeyS||keys.ArrowDown?1:0)-(keys.KeyW||keys.ArrowUp?1:0);
+ const len=Math.hypot(mx,my),run=running||keys.ShiftLeft||keys.ShiftRight;
+ const onGround=player.position.y<=0;
+ if(jumpReq&&onGround)vy=6.2;jumpReq=false;
+ if(len>.08){
+  const f=-my/len,s=mx/len;
+  const speed=(run?7.2:3.8)*(inPuddle(player.position.x,player.position.z)&&onGround?.6:1)*Math.min(1,len);
+  const dir=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw)).multiplyScalar(f).add(new THREE.Vector3(Math.cos(camYaw),0,-Math.sin(camYaw)).multiplyScalar(s)).normalize();
+  player.position.addScaledVector(dir,speed*dt);
+  player.rotation.y=Math.atan2(dir.x,dir.z);
+  if(onGround)swing(me,now*(run?.014:.01),run?.8:.5);
+ }else swing(me,0,0);
+ vy-=16*dt;player.position.y+=vy*dt;if(player.position.y<0){player.position.y=0;vy=0}
+ if(player.position.y>0.05){me.legs[0].rotation.x=.5;me.legs[1].rotation.x=-.3}
+ if(inMatch){player.position.x=THREE.MathUtils.clamp(player.position.x,AX-16.5,AX+16.5);player.position.z=THREE.MathUtils.clamp(player.position.z,AZ-16.5,AZ+16.5)}
+ else{player.position.x=THREE.MathUtils.clamp(player.position.x,-5.4,5.4);player.position.z=THREE.MathUtils.clamp(player.position.z,-50,50);if(Math.hypot(player.position.x,player.position.z+46)<1.8)startMatch()}
+ resolve(player.position);
+ sun.position.set(player.position.x-18,30,player.position.z+14);sun.target.position.copy(player.position);
+ setCamera(false);
+}
+let last=performance.now();
+function loop(now){requestAnimationFrame(loop);const dt=Math.min((now-last)/1000,.04);last=now;
+ if(started){updateTraffic(dt);updateNpcs(dt,now);movePlayer(dt,now);updateCombat(dt,now);if(bubbleT>0){bubbleT-=dt;if(bubbleT<=0)$('bubble').style.display='none'}}
+ renderer.render(scene,camera)}
+setCamera(true);requestAnimationFrame(loop);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+$('play').onclick=()=>{started=true;$('start').style.display='none';setCamera(true)};
+
+// joystick
+const stick=$('stick'),knob=$('knob');let sp=null;
+function joy(e){const r=stick.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;let dx=e.clientX-cx,dy=e.clientY-cy;const max=37,d=Math.hypot(dx,dy);if(d>max){dx=dx/d*max;dy=dy/d*max}moveX=dx/max;moveY=dy/max;knob.style.transform=`translate(${dx}px,${dy}px)`}
+stick.addEventListener('pointerdown',e=>{sp=e.pointerId;stick.setPointerCapture(sp);joy(e)});
+stick.addEventListener('pointermove',e=>{if(e.pointerId===sp)joy(e)});
+const rs=()=>{sp=null;moveX=moveY=0;knob.style.transform='translate(0,0)'};
+stick.addEventListener('pointerup',rs);stick.addEventListener('pointercancel',rs);
+// boutons
+const run=$('run');run.addEventListener('pointerdown',e=>{running=true;run.setPointerCapture(e.pointerId)});
+for(const ev of ['pointerup','pointercancel','lostpointercapture'])run.addEventListener(ev,()=>running=false);
+$('jump').addEventListener('pointerdown',()=>jumpReq=true);
+$('talk').addEventListener('pointerdown',talk);$('veh').addEventListener('pointerdown',toggleVeh);
+$('hit').addEventListener('pointerdown',()=>doHit(FP));$('stone').addEventListener('pointerdown',()=>throwStone(FP));
+$('again').onclick=resetMatch;$('leave').onclick=exitMatch;
+// caméra : glisser sur la scène (souris ou doigt)
+let lp=null,lx=0;const cv=renderer.domElement;
+cv.addEventListener('pointerdown',e=>{lp=e.pointerId;lx=e.clientX;cv.setPointerCapture(lp)});
+cv.addEventListener('pointermove',e=>{if(e.pointerId===lp){camYaw-=(e.clientX-lx)*.006;lx=e.clientX}});
+for(const ev of ['pointerup','pointercancel'])cv.addEventListener(ev,()=>lp=null);
+</script>
+</body>
+</html>
